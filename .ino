@@ -36,3 +36,71 @@ void setup() {
   expander->digitalWrite(TP_RST, HIGH);
   delay(200);
 
+
+
+  initSDCard();
+
+
+
+
+
+  void loop() {
+
+    /*
+  static unsigned long lastRTCTimeUpdate = 0;
+  static unsigned long lastProgressUpdate = 0;
+  static unsigned long lastInfluxDBSend = 0;
+  static unsigned long lastSDWrite = 0;
+  static unsigned long lastIdlePrint = 0;
+  static unsigned long lastLoop = 0;
+
+  unsigned long currentMillis = millis();
+
+  unsigned long loopDuration = currentMillis - lastLoop;
+  lastLoop = currentMillis;
+  Serial.printf("Loop duration: %lu ms\n", loopDuration);
+
+  if (currentMillis - lastRTCTimeUpdate >= 1000) {
+    lastRTCTimeUpdate = currentMillis;
+    PCF85063A_Read_now(&Now_time);
+    updateUIWithRTC();
+  }
+*/
+  /*
+  handleRS485();
+  handleWiFi();
+
+  if (currentMillis - lastProgressUpdate >= 150) {
+    lastProgressUpdate = currentMillis;
+    simulateLoadingProgress();
+  }
+
+  if (WiFi.status() == WL_CONNECTED && currentMillis - lastInfluxDBSend >= 10000) {
+    lastInfluxDBSend = currentMillis;
+    Serial.println("Sending RS485 data to InfluxDB...");
+    sendToInfluxDB(temperatures[0], temperatures[1], temperatures[2], temperatures[3]);
+  }
+*/
+  if (currentMillis - lastSDWrite >= 10000) {
+    lastSDWrite = currentMillis;
+    Serial.println("Logging temperature to SD card...");
+
+    logTemperatureToSD(
+      temperatures[0],
+      temperatures[1],
+      temperatures[2],
+      temperatures[3],
+      String(receivedPressure, 2).c_str(),
+      pressureStatus.c_str(),
+      "Normal"
+    );
+  }
+
+  if (currentMillis - lastIdlePrint >= 1000) {
+    Serial.println("IDLE loop");
+    lastIdlePrint = currentMillis;
+  }
+
+  delay(150);
+}
+
