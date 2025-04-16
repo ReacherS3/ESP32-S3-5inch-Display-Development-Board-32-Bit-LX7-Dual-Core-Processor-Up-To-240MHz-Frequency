@@ -5,7 +5,6 @@
 #include "SD.h"
 #include "SPI.h"
 #include <ESP_IOExpander_Library.h>
-#include "waveshare_pcf85063a.h"
 
 // SPI pin definitions
 #define SD_MOSI 11
