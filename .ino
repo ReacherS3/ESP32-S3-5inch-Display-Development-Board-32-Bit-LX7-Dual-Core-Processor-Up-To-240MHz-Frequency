@@ -1,11 +1,30 @@
-#include "sd_card_logger.h"
+#include <Wire.h>
+#include <Arduino.h>
+#include <ESP_Panel_Library.h>
+#include <ESP_IOExpander_Library.h>
+#include <lvgl.h>
+#include <ui.h>
+#include "lvgl_port_v8.h"
+#include "loading_bar.h"
+#include "waveshare_pcf85063a.h"
+#include "twai_functions.h"
+#include "rs485_functions.h"
+#include "wifi_functions.h"
+#include "influxdb_functions.h"
+#include "sd_card_logger.h"                                                                                             //SD in the functions
 
+ESP_IOExpander_CH422G *expander = NULL;
 
 #define TP_RST 1
 #define LCD_BL 2
 #define LCD_RST 3
 #define SD_CS 4
 #define USB_SEL 5
+
+datetime_t Now_time;
+unsigned long lastUpdateTime = 0;
+char time_str[16];
+char date_str[16];
 
 
 void setup() {
@@ -36,17 +55,50 @@ void setup() {
   expander->digitalWrite(TP_RST, HIGH);
   delay(200);
 
+  Serial.println("Initialize panel device");
+  ESP_Panel *panel = new ESP_Panel();
+  panel->init();
 
+#if LVGL_PORT_AVOID_TEAR
+  ESP_PanelBus_RGB *rgb_bus = static_cast<ESP_PanelBus_RGB *>(panel->getLcd()->getBus());
+  rgb_bus->configRgbFrameBufferNumber(LVGL_PORT_DISP_BUFFER_NUM);
+  rgb_bus->configRgbBounceBufferSize(LVGL_PORT_RGB_BOUNCE_BUFFER_SIZE);
+#endif
 
-  initSDCard();
+  panel->begin();
+  Serial.println("Initialize LVGL");
+  lvgl_port_init(panel->getLcd(), panel->getTouch());
 
+  Serial.println("Create UI");
+  lvgl_port_lock(-1);
+  ui_init();
+  lvgl_port_unlock();
 
+  if (ui_btn4 != NULL) {
+    lv_obj_add_event_cb(ui_btn4, ui_btn4_event_handler, LV_EVENT_CLICKED, NULL);
+  }
+  if (ui_btn1 != NULL) {
+    lv_obj_add_event_cb(ui_btn1, ui_btn1_event_handler, LV_EVENT_CLICKED, NULL);
+  }
+  if (ui_btn_disconnect != NULL) {
+    lv_obj_add_event_cb(ui_btn_disconnect, ui_btn_disconnect_event_handler, LV_EVENT_CLICKED, NULL);
+  }
+  
+  initLoadingBar();
+  initializeRTC();
+  initializeWiFi();
+  initializeTWAI();
+  initRS485(); 
+  initSDCard();                                                                               //SD in the Setup
 
+  if (WiFi.status() == WL_CONNECTED) {
+    initializeInfluxDB();
+  }
 
+  Serial.println("Setup complete.");
+}
 
-  void loop() {
-
-    /*
+void loop() {
   static unsigned long lastRTCTimeUpdate = 0;
   static unsigned long lastProgressUpdate = 0;
   static unsigned long lastInfluxDBSend = 0;
@@ -65,8 +117,7 @@ void setup() {
     PCF85063A_Read_now(&Now_time);
     updateUIWithRTC();
   }
-*/
-  /*
+
   handleRS485();
   handleWiFi();
 
@@ -80,12 +131,12 @@ void setup() {
     Serial.println("Sending RS485 data to InfluxDB...");
     sendToInfluxDB(temperatures[0], temperatures[1], temperatures[2], temperatures[3]);
   }
-*/
+
   if (currentMillis - lastSDWrite >= 10000) {
     lastSDWrite = currentMillis;
     Serial.println("Logging temperature to SD card...");
 
-    logTemperatureToSD(
+    logTemperatureToSD(                                                                                //SD Log in the Loop
       temperatures[0],
       temperatures[1],
       temperatures[2],
